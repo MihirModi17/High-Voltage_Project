@@ -87,7 +87,7 @@ void startAdv(void)
   Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising after n seconds  
 }
 
-void centralOutput(uint8_t out[64]){ // Will only print 64 Characters
+void centralOutput(uint8_t *out){ // Will only print 64 Characters
   /*
    * Output UART (via Bluetooth) to display on Phone
    */
