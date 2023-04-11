@@ -87,17 +87,17 @@ void startAdv(void)
   Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising after n seconds  
 }
 
-void centralOutput(uint8_t *out){ // Will only print 64 Characters
+void centralOutput(char out[64]){
   /*
    * Output UART (via Bluetooth) to display on Phone
    */
-  int count = sizeof(out) / sizeof(out[0]); //Figure out how many Characters to Print
-  bleuart.write(out, count); // Write to BLE UART
+  bleuart.print(out); // Write to BLE UART
 }
 
 void loop() {
   // Testing Code
-  uint8_t testOut[5] = "test";
+  char testOut[64] = "testing\n";
+  //centralOutput(testOut);
   centralOutput(testOut);
   delay(1000);
 }
