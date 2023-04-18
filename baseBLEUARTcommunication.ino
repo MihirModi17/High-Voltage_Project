@@ -14,16 +14,14 @@ BLEBas blebas;    //battery
 
 const char* PASSWORD = "mypassword";
 
+
 void setup() 
 { 
   Serial.begin(115200);
 
   // CFG_DEBUG = 1;
 
- #if CFG_DEBUG
-  //Blocking wait for connection when debug mode is enabled via IDE
-  while (!Serial) yield();
- #endif
+  while(!Serial) delay(10);
 
   //Configures the BLE LED to be enabled on Connection, typically default behavior
   Bluefruit.autoConnLed(true);
@@ -56,8 +54,10 @@ void setup()
   blebas.write(100);
 
   startAdv();
-
+  
   //Can print lines to serial if you want to
+  Serial.print("Advertising is started: ");
+  Serial.println("CLUE");
 }
 
 void startAdv(void)
@@ -86,48 +86,53 @@ bool verified = false;
 
 void loop()
 {
-  /*if (firstLoop && Bluefruit.connected() && bleuart.notifyEnabled() )
+  if (firstLoop && Bluefruit.connected() && bleuart.notifyEnabled() )
   {
      digitalToggle(LED_BUILTIN);
      firstLoop = false;   
-     char printout[79] = "Welcome to the High Voltage Password Manager.\n Please enter the password:  /n";
+     char printout[47] = "Welcome to the High Voltage Password Manager.\n";
      centralOutput(printout);
+     char printout2[22] = "Enter the password: \n";
+     centralOutput(printout2);
+     char empty[1] = "";
+     centralOutput(empty);  
+  
+     while (!verified)
+     {
+       char userInput[strlen(PASSWORD)];
+       int index = 0;
+
+       while (index < strlen(PASSWORD))
+        {
+         if (bleuart.available())
+          {
+            char c = bleuart.read();
+            userInput[index] = c;
+            index++;
+            
+          }
+        }
+      Serial.println(userInput);
+      if (strcmp(userInput, PASSWORD) == 0)
+        {
+          centralOutput(userInput);
+          bleuart.println("Password correct!");
+          verified = true;
+        }
+      else
+        {
+         centralOutput(userInput); 
+         bleuart.println("Password incorrect!");
+        }
+     }
   }
   if (!firstLoop && !Bluefruit.connected() )
   {
     digitalToggle(LED_BUILTIN);
     firstLoop = true;
-  }*/
-
-while (!verified)
-{
-  char userInput[strlen(PASSWORD)+1];
-  int index = 0;
-
-  while (index < strlen(PASSWORD))
-  {
-    
-    if (bleuart.available())
-    {
-      char c = bleuart.read();
-      userInput[index] = c;
-      index++;
-    }
+    verified = false;
   }
-  for (int i = 0; i<strlen(userInput); i++)
-  {
-    Serial.print(userInput[i]);
-  }
-  if (strcmp(userInput, PASSWORD) == 0)
-  {
-    bleuart.println("Password correct!");
-    verified = true;
-  }
-  else
-  {
-    bleuart.println("Password incorrect!");
-  }
-}
+  
 
 }
 
@@ -163,5 +168,5 @@ void centralOutput(char out[64]){
   /*
    * Output the out string to display on Central using UART(via Bluetooth)
    */
-bleuart.print(out);
+bleuart.println(out);
 }
