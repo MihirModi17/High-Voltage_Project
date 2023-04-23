@@ -25,7 +25,7 @@ BLEBas blebas;    //battery
 //password setup
 
 const char* PASSWORD = "mypassword";
-
+const int MAXLENGTH = 64;
 
 void setup() 
 { 
@@ -182,9 +182,9 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
   Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
 }
 
-void centralOutput(char out[64]){  
+void centralOutput(char out[MAXLENGTH]){
   /*
    * Output the out string to display on Central using UART(via Bluetooth)
    */
-bleuart.println(out);
+  bleuart.print(out);
 }
