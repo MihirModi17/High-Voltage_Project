@@ -2,7 +2,19 @@
 #include <bluefruit.h>
 #include <Adafruit_LittleFS.h>
 #include <InternalFileSystem.h>
+#include <Adafruit_NeoPixel.h>
 
+/* Pin used to drive the NeoPixels */
+#define PIN     18
+#define MAXCOMPONENTS  4
+uint8_t *pixelBuffer = NULL;
+uint8_t width = 0;
+uint8_t height = 0;
+uint8_t stride;
+uint8_t componentsValue;
+bool is400Hz;
+uint8_t components = 3;     // only 3 and 4 are valid values
+Adafruit_NeoPixel neopixel(1,18);
 // BLE Service
 
 BLEDfu bledfu;    //OTA DFU Service
@@ -26,7 +38,7 @@ void setup()
   //Configures the BLE LED to be enabled on Connection, typically default behavior
   Bluefruit.autoConnLed(true);
   //Bluefruit.setAppearance(100);
-  
+  neopixel.begin();
   //Serial.println(Bluefruit.getAppearance());
   
   //Config the peripheral connection with maximum bandwidth
@@ -90,6 +102,9 @@ void loop()
   {
      digitalToggle(LED_BUILTIN);
      firstLoop = false;   
+     neopixel.clear();
+     neopixel.setPixelColor(0, neopixel.Color(0,150,0));
+     neopixel.show();
      char printout[47] = "Welcome to the High Voltage Password Manager.\n";
      centralOutput(printout);
      char printout2[22] = "Enter the password: \n";
@@ -131,6 +146,9 @@ void loop()
     digitalToggle(LED_BUILTIN);
     firstLoop = true;
     verified = false;
+    neopixel.clear();
+    neopixel.setPixelColor(0, neopixel.Color(0,0,0));
+    neopixel.show();
   }
   
 
