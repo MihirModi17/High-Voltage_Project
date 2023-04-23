@@ -188,3 +188,9 @@ void centralOutput(char out[MAXLENGTH]){
    */
   bleuart.print(out);
 }
+
+void encrypt(char password[], int key){
+  for(int i=0;i,strlen(password);i++){
+    password[i] = password[i] - key;
+  }
+}
