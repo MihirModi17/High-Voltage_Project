@@ -17,14 +17,23 @@ BLEBas blebas;    //battery
 
 const char* PASSWORD = "hivo23gr11";
 const int MAXLENGTH = 64;
+const int ALLOWED_ATTEMPTS = 3;
+const int NUM_ACCOUNTS = 2;
+//acount username and password setup
+
+char accountname[NUM_ACCOUNTS][MAXLENGTH] = {"Google", "Amazon"};
+
+char username[NUM_ACCOUNTS][MAXLENGTH] = {"highvoltageburner@gmail.com","HighVoltageBurner"};
+
+char password[NUM_ACCOUNTS][MAXLENGTH] = {"Qpw2?*Ae2mQ@T_=r","passwordpassword"};
 
 void setup() 
 { 
-  Serial.begin(115200);
+  // Serial.begin(115200);
 
   // CFG_DEBUG = 1;
 
-  while(!Serial) yield();
+  // while(!Serial) yield();
 
   //Configures the BLE LED to be enabled on Connection, typically default behavior
   Bluefruit.autoConnLed(true);
@@ -61,8 +70,8 @@ void setup()
   startAdv();
   
   //Can print lines to serial if you want to
-  Serial.print("Advertising is started: ");
-  Serial.println("CLUE");
+  //Serial.print("Advertising is started: ");
+ // Serial.println("CLUE");
 }
 
 void startAdv(void)
@@ -88,54 +97,116 @@ bool firstLoop = true;
 
 bool verified = false;
 
+int numAttempts = 1;
+int attemptsLeft = 0;
+
 
 void loop()
 {
-  if (firstLoop && Bluefruit.connected() && bleuart.notifyEnabled() )
+  if (firstLoop && Bluefruit.connected() && bleuart.notifyEnabled())
   {
+    //toggle LED, first loop is false because this is now in the first loop
      digitalToggle(LED_BUILTIN);
      firstLoop = false;   
      int plength = strlen(PASSWORD);
             
 
-     
+     //prints welcome message to central connection
      char printout[47] = "Welcome to the High Voltage Password Manager.";
      centralOutput(printout);
      char printout2[22] = "Enter the password:";
      centralOutput(printout2);
-  
-     while (!verified)
+
+    //attempts to login to the password manager
+     while (!verified && (numAttempts<=ALLOWED_ATTEMPTS))
      {
 
        char userInput[plength];
        int index = 0;
-       
 
-       while (index < plength)
+       while ((index < plength))
         {
          if (bleuart.available())
           {
             char c = bleuart.read();
             userInput[index] = c;
-            Serial.print(index);
-            Serial.println(userInput[index]);
+            //Serial.print(index);
+            //Serial.println(userInput[index]);
             index++;
             
           }
         }
-      userInput[index] = '\0';
-      char filler = bleuart.read();
+      
+      userInput[index] = '\0';  //need this for the password string comparison to work correctly
+      char filler = bleuart.read(); //need this to reset the bleuart reader from central and try multiple attempts
+      
       if (strcmp(userInput, PASSWORD) == 0)
         {
-          Serial.println(userInput);
-          bleuart.println("Password correct!");
+          //Serial.println(userInput);
+          char correctmessage[18] = "Password correct!";
+          centralOutput(correctmessage);
           verified = true;
+
+
+          neopixel.clear();
+          neopixel.setBrightness(25);
+          neopixel.setPixelColor(0, neopixel.Color(0,0,255));
+          neopixel.show();
+          
+          //System accessed successfully
+          char message1[43] = "You have successfully accessed the system.";
+          char message2[60] = "Which account would you like the username and password for?";
+          
+          centralOutput(message1);
+          centralOutput(message2);
+
+          int index2 = 0;
+          char userInput2[MAXLENGTH];
+          while (index2 < strlen(accountname[0]))
+            {
+              if (bleuart.available())
+              {
+                char c = bleuart.read();
+                userInput2[index2] = c;
+                index2++;
+              }
+            }
+          userInput2[index] = '\0';
+          char filler2 = bleuart.read();
+
+          centralOutput(userInput2);
+            
+          for (int i = 0; i < NUM_ACCOUNTS; i++)
+          {
+            if (strcmp(userInput2, accountname[i]) == 0)
+            {
+              centralOutput(username[i]);
+              centralOutput(password[i]);
+            }
+          }
         }
       else
         {
-         Serial.println(userInput);
-         bleuart.println("Password incorrect!");
+         //Serial.println(userInput);
+         char incorrectmessage[20] = "Password incorrect!";
+         centralOutput(incorrectmessage);
+
+
+         attemptsLeft = ALLOWED_ATTEMPTS-numAttempts;
+
+         //prints how many attempts are left
+         char buffer[50];
+         sprintf(buffer, "You have %d attempts left.", attemptsLeft);
+         centralOutput(buffer);
+
+         numAttempts++; //failed attempt, increase the attempt number
         }
+     }
+     if (numAttempts>ALLOWED_ATTEMPTS)
+     {
+      changeColor(255,0,0);
+      char failmessage[47] = "You have failed to access the system. Get Out.";
+      centralOutput(failmessage);
      }
   }
 
@@ -149,14 +220,11 @@ void connect_callback(uint16_t conn_handle)
    
   char central_name[32] = { 0 };
   connection->getPeerName(central_name, sizeof(central_name));
-
-  neopixel.clear();
   neopixel.setBrightness(25);
-  neopixel.setPixelColor(0, neopixel.Color(0,150,0));
-  neopixel.show();
+  changeColor(0,150,0);
   
-  Serial.print("Connected to ");
-  Serial.println(central_name);
+  //Serial.print("Connected to ");
+  //Serial.println(central_name);
 }
 
 /**
@@ -177,8 +245,8 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
   firstLoop = true;
   verified = false;
 
-  Serial.println();
-  Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
+  //Serial.println();
+  //Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
 }
 
 void centralOutput(char out[MAXLENGTH]){
@@ -202,4 +270,11 @@ void encrypt(char password[], int key){
   {
     password[i] = password[i] - key;
   }
+}
+
+void changeColor(int x, int y, int z){
+  neopixel.clear();
+  //neopixel.setBrightness(25);
+  neopixel.setPixelColor(0, neopixel.Color(x,y,z));
+  neopixel.show();
 }
