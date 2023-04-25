@@ -4,16 +4,8 @@
 #include <InternalFileSystem.h>
 #include <Adafruit_NeoPixel.h>
 
-/* Pin used to drive the NeoPixels */
-#define PIN     18
-#define MAXCOMPONENTS  4
-uint8_t *pixelBuffer = NULL;
-uint8_t width = 0;
-uint8_t height = 0;
-uint8_t stride;
-uint8_t componentsValue;
-bool is400Hz;
-uint8_t components = 3;     // only 3 and 4 are valid values
+
+
 Adafruit_NeoPixel neopixel(1,18);
 // BLE Service
 
@@ -25,7 +17,7 @@ BLEBas blebas;    //battery
 //password setup
 
 const char* PASSWORD = "mypassword";
-const int MAXLENGTH = 64;
+
 
 void setup() 
 { 
@@ -102,9 +94,7 @@ void loop()
   {
      digitalToggle(LED_BUILTIN);
      firstLoop = false;   
-     neopixel.clear();
-     neopixel.setPixelColor(0, neopixel.Color(0,150,0));
-     neopixel.show();
+
      char printout[47] = "Welcome to the High Voltage Password Manager.\n";
      centralOutput(printout);
      char printout2[22] = "Enter the password: \n";
@@ -146,9 +136,7 @@ void loop()
     digitalToggle(LED_BUILTIN);
     firstLoop = true;
     verified = false;
-    neopixel.clear();
-    neopixel.setPixelColor(0, neopixel.Color(0,0,0));
-    neopixel.show();
+    
   }
   
 
@@ -163,7 +151,10 @@ void connect_callback(uint16_t conn_handle)
    
   char central_name[32] = { 0 };
   connection->getPeerName(central_name, sizeof(central_name));
-  
+       neopixel.clear();
+     neopixel.setBrightness(25);
+     neopixel.setPixelColor(0, neopixel.Color(0,150,0));
+     neopixel.show();
   Serial.print("Connected to ");
   Serial.println(central_name);
 }
@@ -180,15 +171,17 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 
   Serial.println();
   Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
+  neopixel.clear();
+  neopixel.setBrightness(0);
+  neopixel.show();
 }
 
-void centralOutput(char out[MAXLENGTH]){
+void centralOutput(char out[64]){  
   /*
    * Output the out string to display on Central using UART(via Bluetooth)
    */
-  bleuart.print(out);
+bleuart.println(out);
 }
-
 void decrypt(char password[], int key){
   for(int i=0; i<strlen(password); i++){
     password[i] = password[i] + key;
