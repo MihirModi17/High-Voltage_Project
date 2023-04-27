@@ -40,3 +40,10 @@ void encrypt(char password[], int key){
     password[i] = password[i] - key;
   }
 }
+int keygen(char pass[]){
+  int key = 0;
+  for(int i = 0; i < strlen(pass); i++){
+    key += pass[i];
+  }
+  return key;
+}
