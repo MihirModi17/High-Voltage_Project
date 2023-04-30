@@ -1,0 +1,311 @@
+
+#include <bluefruit.h>
+#include <Adafruit_NeoPixel.h>
+
+//NeoPixel identification
+Adafruit_NeoPixel neopixel(1,18);
+
+// BLE Service
+BLEDfu bledfu;    //OTA DFU Service
+BLEDis bledis;    //device information
+BLEUart bleuart;  //uart over ble
+BLEBas blebas;    //battery
+
+//password setup
+
+const char* PASSWORD = "hivo23gr11";
+const int MAXLENGTH = 64;
+const int ALLOWED_ATTEMPTS = 3;
+const int NUM_ACCOUNTS = 2;
+const int MAX_DIGITS = 1;
+
+//acount username and password setup
+
+char accountname[NUM_ACCOUNTS][MAXLENGTH] = {"Google", "Amazon"};
+
+char username[NUM_ACCOUNTS][MAXLENGTH] = {"highvoltageburner@gmail.com","HighVoltageBurner"};
+
+//char password[NUM_ACCOUNTS][MAXLENGTH] = {"Qpw2?*Ae2mQ@T_=r","passwordpassword"}; //Original Passwords For Reference
+//{{81, 112, 119, 50, 63, 42, 65, 101, 50, 109, 81, 64, 84, 95, 61, 114, '\0'}, {112, 97, 115, 115, 119, 111, 114, 100, 112, 97, 115, 115, 119, 111, 114, 100, '\0'}}; //Passwords in ASCII
+
+char password[NUM_ACCOUNTS][MAXLENGTH] = {{251, 26, 33, 220, 233, 212, 235, 15, 220, 23, 251, 234, 254, 9, 231, 28, '\0'}, {26, 11, 29, 29, 33, 25, 28, 14, 26, 11, 29, 29, 33, 25, 28, 14, '\0'}}; // Passwords that have been hashed
+
+void setup() 
+{ 
+  //Configures the BLE LED to be enabled on Connection, typically default behavior
+  Bluefruit.autoConnLed(true);
+  //Bluefruit.setAppearance(100);
+
+  //Start the neoPixel
+  neopixel.begin();
+  
+  //Config the peripheral connection with maximum bandwidth
+  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
+
+  Bluefruit.begin();
+  Bluefruit.setTxPower(4);
+  //Bluefruit.setName(getMcuUniqueID());//useful for testing with multiple central connections
+  Bluefruit.Periph.setConnectCallback(connect_callback);
+  Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
+
+  //to be consistent, add OTA DFU first if it exists, over the air device firmware update
+  bledfu.begin();
+
+  //Config and start Device Info Service
+  bledis.setManufacturer("Adafruit Industries");
+  bledis.setModel("Bluefruit Feather52");
+  bledis.begin();
+
+  //Config and start BLEUART services
+  bleuart.begin();
+
+  //Config and start BLE Battery service
+  blebas.begin();
+  blebas.write(100);
+
+  startAdv();
+}
+
+void startAdv(void)
+{
+
+  //Advertising packet
+  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
+  Bluefruit.Advertising.addTxPower();
+
+  // Include bleuart 128-bit uuid
+  Bluefruit.Advertising.addService(bleuart);
+
+  // Secondary scan packet since there is no room for 'Name' in advertising packet
+  Bluefruit.ScanResponse.addName();
+
+  Bluefruit.Advertising.restartOnDisconnect(true);
+  Bluefruit.Advertising.setInterval(32, 244); // in unit of 0.625 ms
+  Bluefruit.Advertising.setFastTimeout(30);   // number of seconds in fast mode
+  Bluefruit.Advertising.start(0);             // 0 = Don't stop advertising after n seconds
+}
+
+bool firstLoop = true;
+
+bool verified = false;
+
+int numAttempts = 1;
+
+int attemptsLeft = 0;
+
+
+void loop()
+{
+  if (firstLoop && Bluefruit.connected() && bleuart.notifyEnabled()) //if in UART box and connected
+  {
+    //toggle LED, first loop is false because this is now in the first loop
+     digitalToggle(LED_BUILTIN);
+     firstLoop = false;   
+     
+     int plength = strlen(PASSWORD);
+            
+     //prints welcome message to central connection
+     char printout[47] = "Welcome to the High Voltage Password Manager.";
+     centralOutput(printout);
+     char printout2[22] = "Enter the password:";
+     centralOutput(printout2);
+
+    //attempts to login to the password manager
+    //you get ALLOWED_ATTEMPTS number of tries while not verified
+     while (!verified && (numAttempts<=ALLOWED_ATTEMPTS))
+     {
+      char userInput[plength];
+      centralInput(plength, userInput);
+
+      if (strcmp(userInput, PASSWORD) == 0)
+        {
+          char correctmessage[18] = "Password correct!";
+          centralOutput(correctmessage);
+          verified = true;
+          
+          changeColor(0,255,0);
+          
+          //System accessed successfully
+          char message1[43] = "You have successfully accessed the system.";
+          centralOutput(message1);
+
+          bool keepAsking = true;
+          while (keepAsking)
+          {
+            char message2[60] = "Which account would you like the username and password for?";
+            char message3[23] = "0 - Google, 1 - Amazon";
+          
+            centralOutput(message2);
+            centralOutput(message3);
+
+            char userInput2[MAX_DIGITS];
+            centralInput(MAX_DIGITS,userInput2);
+
+            int accountNumber = atoi(userInput2);
+          
+            char buffer[MAXLENGTH];
+            sprintf(buffer, "You are accessing account %d.", accountNumber);
+            centralOutput(buffer);
+          
+            char ubuffer[MAXLENGTH];
+            sprintf(ubuffer, "The username is: %s.", username[accountNumber]);
+            centralOutput(ubuffer);
+
+            decrypt(password[accountNumber], keygen(PASSWORD));
+            char pbuffer[MAXLENGTH];
+            sprintf(pbuffer, "The password is: %s.", password[accountNumber]);
+            centralOutput(pbuffer);
+            encrypt(password[accountNumber], keygen(PASSWORD));
+
+            char questionToContinue[50] = "Do you need more passwords? Press 1 to continue: ";
+            centralOutput(questionToContinue);
+
+            int index = 0;  
+            char c;
+            while (index < 1)
+             {
+                if (bleuart.available())
+                   {
+                    c = bleuart.read();
+                    index++;
+                    char filler = bleuart.read();
+                   }
+             }
+             int check = c - '0';
+             if (check == 1)
+             {
+               keepAsking = true;
+             }
+             else
+             {
+               keepAsking = false;
+               char terminationmessage[9] = "Goodbye.";
+               centralOutput(terminationmessage);
+             }
+          }
+        }
+      else
+        {
+         int blue[3] = {0, 0, 255};
+         int red[3] = {255, 0, 0};
+         blink(1000, red, blue);
+         
+         char incorrectmessage[20] = "Password incorrect!";
+         centralOutput(incorrectmessage);
+          
+         
+         attemptsLeft = ALLOWED_ATTEMPTS-numAttempts;
+
+         //prints how many attempts are left
+         char buffer[50];
+         sprintf(buffer, "You have %d attempts left.", attemptsLeft);
+         centralOutput(buffer);
+
+         numAttempts++; //failed attempt, increase the attempt number
+        }
+     }
+     if (numAttempts>ALLOWED_ATTEMPTS)
+     {
+      changeColor(255,0,0);
+      char failmessage[47] = "You have failed to access the system. Get Out.";
+      centralOutput(failmessage);
+     }
+  }
+}
+
+// callback invoked when central connects
+void connect_callback(uint16_t conn_handle)
+{
+  // Get the reference to current connection
+  BLEConnection* connection = Bluefruit.Connection(conn_handle);
+   
+  char central_name[32] = { 0 };
+  connection->getPeerName(central_name, sizeof(central_name));
+  
+  neopixel.setBrightness(25);
+  changeColor(0,0,255);
+
+}
+
+/**
+ * Callback invoked when a connection is dropped
+ * @param conn_handle connection where this event happens
+ * @param reason is a BLE_HCI_STATUS_CODE which can be found in ble_hci.h
+ */
+void disconnect_callback(uint16_t conn_handle, uint8_t reason)
+{
+  
+  neopixel.clear();
+  neopixel.setBrightness(0);
+  neopixel.show();
+
+  digitalToggle(LED_BUILTIN);
+  firstLoop = true;
+  verified = false;
+  numAttempts = 1;
+}
+
+void centralOutput(char out[MAXLENGTH]){
+  bleuart.println(out);
+}
+
+void decrypt(char password[], int key){
+  
+  for(int i=0; i<strlen(password); i++)
+  {
+    password[i] = password[i] + key;
+  }
+}
+
+void encrypt(char password[], int key){
+  
+  for(int i=0;i<strlen(password);i++)
+  {
+    password[i] = password[i] - key;
+  }
+}
+
+int keygen(const char pass[]){
+  int key = 0;
+  for(int i = 0; i < strlen(pass); i++){
+    key += pass[i];
+  }
+  return key;
+}
+
+void centralInput(int len, char* userInput)
+{
+  int index = 0;
+  char str[len];
+  
+  while (index < len)
+    {
+     if (bleuart.available())
+       {
+        char c = bleuart.read();
+        str[index] = c;
+        index++;
+       }
+     }
+  str[index] = '\0';  //need this for the password string comparison to work correctly
+  char filler = bleuart.read(); //need this to reset the bleuart reader from central and try multiple attempts
+
+  for (int i = 0; i < index; i++)
+  {
+    userInput[i] = str[i];
+  }
+  userInput[index] = '\0';
+}
+
+void changeColor(int x, int y, int z){
+  neopixel.clear();
+  neopixel.setPixelColor(0, neopixel.Color(x,y,z));
+  neopixel.show();
+}
+
+void blink(int t, int flashcolor[], int normalcolor[])
+{
+  changeColor(flashcolor[0],flashcolor[1],flashcolor[2]);
+  delay(t);
+  changeColor(normalcolor[0],normalcolor[1],normalcolor[2]);
+}
